@@ -6,7 +6,7 @@ import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 from spotipy.oauth2 import SpotifyOAuth
 
-from flask import Flask, request, url_for, session, redirect
+from flask import Flask, request, url_for, session, redirect, render_template
 
 #init flask
 app = Flask(__name__)
@@ -18,6 +18,11 @@ TOKEN_INFO = 'token_info'
 
 #home page
 @app.route('/')
+def home_page():
+    return render_template('index.html')
+
+@app.route('/login')
+#log in url page
 def login():
     auth_url = create_spotify_oauth(show_dialog=True).get_authorize_url() #generates an auth url
     return redirect(auth_url) #sending user to the authorization url
@@ -26,8 +31,7 @@ def login():
 @app.route('/logout')
 def logout():
     session.clear()
-    auth_url = create_spotify_oauth(show_dialog=True).get_authorize_url()
-    return redirect(auth_url)
+    return redirect('/')
 
 #redirecting after logging in
 @app.route('/redirect')
@@ -36,7 +40,20 @@ def redirect_page():
     code = request.args.get('code') #getting users auth code to use as the access token
     token_info = create_spotify_oauth().get_access_token(code) 
     session[TOKEN_INFO] = token_info #storing the token in our session
-    return redirect(url_for('save_playlist_rewind', external= True))
+    return redirect('/start')
+
+@app.route('/start')
+def start_page():
+
+    try: #making sure the user is logged in
+        token_info = get_token()
+    except:
+        print("User not logged in!")
+        return redirect('/')
+
+    sp = spotipy.Spotify(auth= token_info['access_token'], requests_timeout=20)
+    username = sp.current_user()['display_name']
+    return render_template('start.html', data=username)
 
 #helper function to get all of the users playlists
 def get_all_playlists(sp):
@@ -101,7 +118,7 @@ def add_tracks(sp, song_uris, user_id, pr_id, rand_playlists):
 
 
 #saving the new playlist to the logged in user's profile
-@app.route('/savePlaylistRewind')
+@app.route('/dashboard')
 def save_playlist_rewind():
 
     try: #making sure the user is logged in
